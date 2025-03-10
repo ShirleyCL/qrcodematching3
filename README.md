@@ -1,119 +1,155 @@
 # qrcodematching3
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>双二维码比对扫描器</title>
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <title>二维码对比工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        #scanner-container { 
-            position: relative;
-            width: 100%;
+        body {
+            font-family: Arial, sans-serif;
             max-width: 600px;
-            margin: auto;
+            margin: 0 auto;
+            padding: 20px;
         }
         #preview {
             width: 100%;
-            height: auto;
+            height: 300px;
+            background: #333;
+            position: relative;
         }
-        .status-light {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            border: 2px solid white;
-        }
-        .result-box {
+        .status {
             padding: 10px;
-            margin: 10px;
-            background: rgba(255,255,255,0.9);
+            margin: 10px 0;
             border-radius: 5px;
+        }
+        .scanning {
+            background: #e3f2fd;
+        }
+        .result {
+            background: #e8f5e9;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            margin: 5px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #comparison {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 15px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <div id="scanner-container">
-        <video id="preview" playsinline></video>
-        <div id="statusLight" class="status-light"></div>
-        <div id="results">
-            <div class="result-box">二维码1：<span id="result1">等待扫描...</span></div>
-            <div class="result-box">二维码2：<span id="result2">等待扫描...</span></div>
-        </div>
+    <h2>二维码对比工具</h2>
+    <div id="preview">
+        <video id="video" playsinline style="width: 100%;"></video>
     </div>
+    
+    <div id="status1" class="status"></div>
+    <div id="status2" class="status"></div>
+    
+    <button id="startBtn1" onclick="startScan(1)">开始扫描第一个二维码</button>
+    <button id="startBtn2" onclick="startScan(2)" disabled>开始扫描第二个二维码</button>
+    <div id="comparison"></div>
 
     <script>
-        const codeReader = new ZXing.BrowserMultiFormatReader();
+        let video = document.getElementById("video");
+        let canvas = document.createElement("canvas");
+        let ctx = canvas.getContext("2d");
+        let currentScan = 0;
+        let result1 = "";
+        let result2 = "";
         let scanning = false;
-        let lastResults = { qr1: null, qr2: null };
 
-        async function startScanning() {
+        async function setupCamera() {
             try {
-                const videoInputDevices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-                await codeReader.decodeFromVideoDevice(
-                    videoInputDevices[0].deviceId,
-                    'preview',
-                    (result, error) => {
-                        if (result) {
-                            handleResult(result.text);
-                        }
-                    }
-                );
-                scanning = true;
-            } catch (error) {
-                console.error(error);
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = stream;
+                await video.play();
+            } catch (err) {
+                alert("无法访问摄像头，请检查权限设置");
             }
         }
 
-        function handleResult(text) {
-            if (!lastResults.qr1) {
-                lastResults.qr1 = text;
-                document.getElementById('result1').textContent = text;
-            } else if (!lastResults.qr2 && text !== lastResults.qr1) {
-                lastResults.qr2 = text;
-                document.getElementById('result2').textContent = text;
-                checkResults();
-            } else {
-                // 当两个二维码都扫描到后，重置检测
-                if (text === lastResults.qr1 || text === lastResults.qr2) {
-                    checkResults();
-                }
-            }
-        }
-
-        function checkResults() {
-            const statusLight = document.getElementById('statusLight');
-            if (lastResults.qr1 && lastResults.qr2) {
-                if (lastResults.qr1 === lastResults.qr2) {
-                    statusLight.style.backgroundColor = '#00ff00';
-                } else {
-                    statusLight.style.backgroundColor = '#ff0000';
-                }
-            } else {
-                statusLight.style.backgroundColor = '#ff0000';
-            }
+        function scanQR() {
+            if (!scanning) return;
             
-            // 2秒后重置扫描结果
-            setTimeout(() => {
-                lastResults = { qr1: null, qr2: null };
-                document.getElementById('result1').textContent = '等待扫描...';
-                document.getElementById('result2').textContent = '等待扫描...';
-                statusLight.style.backgroundColor = '';
-            }, 2000);
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            
+            if (code) {
+                handleResult(code.data);
+            } else if (scanning) {
+                requestAnimationFrame(scanQR);
+            }
+        }
+
+        function handleResult(data) {
+            scanning = false;
+            if (currentScan === 1) {
+                result1 = data;
+                document.getElementById("status1").innerHTML = 
+                    `第一个二维码内容：<strong>${data}</strong>`;
+                document.getElementById("startBtn2").disabled = false;
+            } else {
+                result2 = data;
+                document.getElementById("status2").innerHTML = 
+                    `第二个二维码内容：<strong>${data}</strong>`;
+                compareResults();
+            }
+            updateUI();
+        }
+
+        function startScan(step) {
+            currentScan = step;
+            scanning = true;
+            updateUI();
+            document.getElementById(`startBtn${step}`).disabled = true;
+            scanQR();
+        }
+
+        function compareResults() {
+            const comparisonDiv = document.getElementById("comparison");
+            if (result1 === result2) {
+                comparisonDiv.style.backgroundColor = "#C8E6C9";
+                comparisonDiv.textContent = "✅ 两个二维码内容一致";
+            } else {
+                comparisonDiv.style.backgroundColor = "#FFCDD2";
+                comparisonDiv.textContent = "❌ 二维码内容不一致";
+            }
+        }
+
+        function updateUI() {
+            const statusDivs = document.querySelectorAll(".status");
+            statusDivs.forEach(div => div.classList.remove("scanning", "result"));
+            
+            if (scanning) {
+                document.getElementById(`status${currentScan}`).classList.add("scanning");
+                document.getElementById(`status${currentScan}`).textContent = 
+                    `正在扫描第 ${currentScan} 个二维码...`;
+            } else {
+                document.getElementById(`status${currentScan}`).classList.add("result");
+            }
         }
 
         // 初始化摄像头
-        window.onload = () => {
-            startScanning();
-        }
-
-        // 清理摄像头
-        window.onbeforeunload = () => {
-            if (scanning) {
-                codeReader.reset();
-            }
-        }
+        setupCamera();
     </script>
 </body>
 </html>
