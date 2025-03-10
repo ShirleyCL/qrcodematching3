@@ -1,15 +1,79 @@
 # qrcodematching3
 圣昌电子专用 测试7
-<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>双条形码验证系统</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <title>双二维码验证系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        /* 保持原有样式不变 */
-        /* 只需修改所有"二维码"文字为"条形码" */
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        #camera-container {
+            width: 100%;
+            max-width: 600px;
+            height: 60vh;
+            position: relative;
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #status {
+            margin: 20px 0;
+            font-size: 1.2em;
+            text-align: center;
+        }
+
+        #result {
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 600px;
+            word-break: break-all;
+        }
+
+        #confirm-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+
+        #confirm-btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
