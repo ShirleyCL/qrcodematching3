@@ -1,155 +1,117 @@
 # qrcodematching3
+圣昌电子专用
 <!DOCTYPE html>
-<html lang="zh">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>二维码对比工具</title>
+    <title>二维码比较器</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        #preview {
+        #video {
             width: 100%;
-            height: 300px;
-            background: #333;
-            position: relative;
-        }
-        .status {
-            padding: 10px;
+            max-width: 400px;
             margin: 10px 0;
-            border-radius: 5px;
         }
-        .scanning {
-            background: #e3f2fd;
-        }
-        .result {
-            background: #e8f5e9;
+        .button-container {
+            margin: 10px 0;
         }
         button {
-            padding: 12px 24px;
-            font-size: 16px;
+            padding: 10px;
             margin: 5px;
-            background: #2196F3;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+            font-size: 16px;
         }
-        #comparison {
+        #result {
+            white-space: pre-wrap;
             font-size: 18px;
-            font-weight: bold;
-            margin: 20px 0;
-            padding: 15px;
-            text-align: center;
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
-    <h2>二维码对比工具</h2>
-    <div id="preview">
-        <video id="video" playsinline style="width: 100%;"></video>
+    <video id="video" playsinline></video>
+    <div class="button-container">
+        <button id="scanFirst">扫描第一个二维码</button>
+        <button id="scanSecond" disabled>扫描第二个二维码</button>
     </div>
-    
-    <div id="status1" class="status"></div>
-    <div id="status2" class="status"></div>
-    
-    <button id="startBtn1" onclick="startScan(1)">开始扫描第一个二维码</button>
-    <button id="startBtn2" onclick="startScan(2)" disabled>开始扫描第二个二维码</button>
-    <div id="comparison"></div>
+    <div id="result"></div>
 
     <script>
-        let video = document.getElementById("video");
-        let canvas = document.createElement("canvas");
-        let ctx = canvas.getContext("2d");
-        let currentScan = 0;
-        let result1 = "";
-        let result2 = "";
+        const video = document.getElementById('video');
+        const scanFirstBtn = document.getElementById('scanFirst');
+        const scanSecondBtn = document.getElementById('scanSecond');
+        const resultDiv = document.getElementById('result');
+        
         let scanning = false;
+        let firstCode = null;
+        let secondCode = null;
 
-        async function setupCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" } 
-                });
-                video.srcObject = stream;
-                await video.play();
-            } catch (err) {
-                alert("无法访问摄像头，请检查权限设置");
+        // 初始化按钮状态
+        scanSecondBtn.disabled = true;
+
+        scanFirstBtn.addEventListener('click', () => startScanning('first'));
+        scanSecondBtn.addEventListener('click', () => startScanning('second'));
+
+        function startScanning(step) {
+            // 停止之前的摄像头流
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
             }
+
+            resultDiv.textContent = step === 'first' ? '正在扫描第一个二维码...' : '正在扫描第二个二维码...';
+            
+            navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            }).then(stream => {
+                video.srcObject = stream;
+                video.play();
+                scanning = true;
+                scanFrame(step);
+            }).catch(err => {
+                resultDiv.textContent = '无法访问摄像头: ' + err;
+            });
         }
 
-        function scanQR() {
+        function scanFrame(step) {
             if (!scanning) return;
-            
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
             const code = jsQR(imageData.data, imageData.width, imageData.height);
-            
+
             if (code) {
-                handleResult(code.data);
-            } else if (scanning) {
-                requestAnimationFrame(scanQR);
-            }
-        }
-
-        function handleResult(data) {
-            scanning = false;
-            if (currentScan === 1) {
-                result1 = data;
-                document.getElementById("status1").innerHTML = 
-                    `第一个二维码内容：<strong>${data}</strong>`;
-                document.getElementById("startBtn2").disabled = false;
+                scanning = false;
+                video.srcObject.getTracks().forEach(track => track.stop());
+                
+                if (step === 'first') {
+                    firstCode = code.data;
+                    resultDiv.textContent = `第一个二维码内容：\n${firstCode}`;
+                    scanSecondBtn.disabled = false;
+                    scanFirstBtn.disabled = true;
+                } else {
+                    secondCode = code.data;
+                    resultDiv.textContent += `\n\n第二个二维码内容：\n${secondCode}`;
+                    
+                    const isMatch = firstCode === secondCode;
+                    resultDiv.textContent += `\n\n比较结果：${isMatch ? '✅ 二维码内容一致' : '❌ 二维码内容不同'}`;
+                    
+                    scanFirstBtn.disabled = false;
+                    scanSecondBtn.disabled = true;
+                    // 重置状态以便重新扫描
+                    firstCode = null;
+                    secondCode = null;
+                }
             } else {
-                result2 = data;
-                document.getElementById("status2").innerHTML = 
-                    `第二个二维码内容：<strong>${data}</strong>`;
-                compareResults();
-            }
-            updateUI();
-        }
-
-        function startScan(step) {
-            currentScan = step;
-            scanning = true;
-            updateUI();
-            document.getElementById(`startBtn${step}`).disabled = true;
-            scanQR();
-        }
-
-        function compareResults() {
-            const comparisonDiv = document.getElementById("comparison");
-            if (result1 === result2) {
-                comparisonDiv.style.backgroundColor = "#C8E6C9";
-                comparisonDiv.textContent = "✅ 两个二维码内容一致";
-            } else {
-                comparisonDiv.style.backgroundColor = "#FFCDD2";
-                comparisonDiv.textContent = "❌ 二维码内容不一致";
+                requestAnimationFrame(() => scanFrame(step));
             }
         }
-
-        function updateUI() {
-            const statusDivs = document.querySelectorAll(".status");
-            statusDivs.forEach(div => div.classList.remove("scanning", "result"));
-            
-            if (scanning) {
-                document.getElementById(`status${currentScan}`).classList.add("scanning");
-                document.getElementById(`status${currentScan}`).textContent = 
-                    `正在扫描第 ${currentScan} 个二维码...`;
-            } else {
-                document.getElementById(`status${currentScan}`).classList.add("result");
-            }
-        }
-
-        // 初始化摄像头
-        setupCamera();
     </script>
 </body>
 </html>
